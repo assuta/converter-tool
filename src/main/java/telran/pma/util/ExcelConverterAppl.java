@@ -1,62 +1,51 @@
 package telran.pma.util;
+
 import java.io.*;
 import java.util.Iterator;
 
-import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.*;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 //import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.*;
+
 public class ExcelConverterAppl {
-public static final String LOGGER_NAME = "converter_logger";
-public static final String LOGGER_LEVEL_ENV_VARIABLE = "LOGGER_LEVEL";
-	public static void main(String[] args) throws IOException {
-		String levelStr = System.getenv(LOGGER_LEVEL_ENV_VARIABLE);
-		if(levelStr != null) {
+	public static final String LOGGER_NAME = "converter_logger";
+	public static final String LOGGER_LEVEL_ENV_VARIABLE = "LOGGER_LEVEL";
+	private static final String DEFAULT_PATH = "protocol-pma.xlsx";
+	private static final String DEFAULT_OUTPUT_PATH = "protocol.json";
+	public static Logger logger = LogManager.getLogger(LOGGER_NAME);
+	public static void main(String[] args)  {
+		try {
+			String levelStr = System.getenv(LOGGER_LEVEL_ENV_VARIABLE);
+			if (levelStr == null) {
+				levelStr = "INFO";
+			}
+			
 			Configurator.setLevel(LOGGER_NAME, Level.valueOf(levelStr));
-		}
-		
-		FileInputStream file = new FileInputStream(new File("protocol-pma.xlsx"));
-		
-		//Create Workbook instance holding reference to .xlsx file
-		XSSFWorkbook workbook = new XSSFWorkbook(file);
-
-		//Get first/desired sheet from the workbook
-		XSSFSheet sheet = workbook.getSheetAt(0);
-
-		//Iterate through each rows one by one
-		Iterator<Row> rowIterator = sheet.iterator();
-	//	rowIterator.next();
-		while (rowIterator.hasNext()) {
-
-		  Row row = rowIterator.next();
-
-		  //For each row, iterate through all the columns
-		  Iterator<Cell> cellIterator = row.cellIterator();
-		
-		  while (cellIterator.hasNext()) {
-
-		    Cell cell = cellIterator.next();
-		    //Check the cell type and format accordingly
-		    switch (cell.getCellType()) {
-		      case  NUMERIC:
-		        System.out.print(String.format("value: %s type: %s row: %s column: %c ***",cell.getNumericCellValue(),
-		        		cell.getCellType(), cell.getRowIndex(), 'A' + cell.getColumnIndex()));
-		        break;
-		      case STRING:
-		    	  System.out.print(String.format("value: %s type: %s row: %s column: %c ***",cell.getStringCellValue(),
-			        		cell.getCellType(), cell.getRowIndex(), 'A' + cell.getColumnIndex()));
-		        break;
-			default:
-				break;
-		    }
-		  }
-		  System.out.println();
-		}
-		file.close();
-		workbook.close();
-
+			String workbookPath = args.length > 0 ? args[0] : DEFAULT_PATH;
+			int sheetNumber = args.length > 1 ? Integer.parseInt(args[1]) : 0;
+			FileInputStream file = new FileInputStream(new File(workbookPath));
+			// Create Workbook instance holding reference to .xlsx file
+			XSSFWorkbook workbook = new XSSFWorkbook(file);
+			logger.info("workbook : {}", workbookPath);
+			// Get a sheet from the workbook
+			XSSFSheet sheet = workbook.getSheetAt(sheetNumber);
+			logger.info("sheet: " + sheet.getSheetName());
+			Iterator<Row> rowIterator = sheet.iterator();
+			ConverterService converterService = ConverterService.of(rowIterator);
+			String json = converterService.getFinalJSON();
+			PrintStream output = new PrintStream(DEFAULT_OUTPUT_PATH);
+			output.println(json);
+			output.close();
+			file.close();
+			workbook.close();
+		} catch (RuntimeException e) {
+			e.printStackTrace();
+		} catch (Exception e) {
+			logger.error(e.getMessage());
+		} 
 	}
 
 }

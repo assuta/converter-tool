@@ -2,13 +2,14 @@ package telran.pma.util;
 
 import java.util.*;
 import java.util.function.Consumer;
-
+import java.util.function.Supplier;
+import org.apache.logging.log4j.*;
 import org.apache.poi.ss.usermodel.Cell;
 import org.json.*;
 
 public class ConverterSchema {
 	private static final String FIRST = "first";
-	private static final String SECOND = "first";
+	private static final String SECOND = "second";
 	private static final String DRUG = "drug";
 	private static final String ACTIVE_MOIETY = "active_moiety";
 	private static final String DOSING = "dosing";
@@ -16,12 +17,24 @@ public class ConverterSchema {
 	private static final String MIN_THRESHOULD = "min_threshold";
 	private static final String AVOID = "avoid";
 	private static final String AGE_ADJUSTMENT = "age_adjustment";
-	private static String currentPainLevel;
-	private static int currentIndex = -1;
+	private static final String INTERVAL = "interval";
+	private static final String WEIGHT = "weight";
+	private static final String CLASS = "class";
+	private static final String CHILD_PUGH = "child_pugh";
+	private static final String GFR = "gfr";
+	private static final String FIRST_DRUG_ONLY = "first_drug_only";
+	private static final String PLT = "plt";
+	private static final String WBC = "wbc";
+	private static final String SAT = "sat";
+	private static final String SODIUM = "sodium";
+	private static final String SENSITIVITY = "sensitivity";
+	private static final String CONTRAINDICATIONS = "contraindications";
+	private static String currentPainLevel = "";
 	private static HashMap<String, JSONArray> painJSONObjects;
 	private static JSONObject firstJSONObject;
 	private static JSONObject secondJSONObject;
-	
+	private static JSONObject rowJSONObj;
+	private static Logger logger = ExcelConverterAppl.logger;
 
 	@SuppressWarnings("serial")
 	public static HashMap<String, Consumer<Cell>> getHandlers(HashMap<String, JSONArray> painJSONObjects) {
@@ -60,28 +73,29 @@ public class ConverterSchema {
 		String level = getStringValue(cell);
 		if (!currentPainLevel.equals(level)) {
 			currentPainLevel = level;
-			currentIndex = -1;
+
 		}
-		JSONObject rowJSONObj = new JSONObject();
+		rowJSONObj = new JSONObject();
 		firstJSONObject = new JSONObject();
 
 		rowJSONObj.put(FIRST, firstJSONObject);
 		painJSONObjects.computeIfAbsent(currentPainLevel, k -> new JSONArray()).put(rowJSONObj);
-		++currentIndex;
+
 	}
 
 	static void hierarchyHandler(Cell cell) {
 		JSONObject jsonObj = getJSONObject();
 		String value = getStringValue(cell);
-		jsonObj.put("hierarchy", Integer.parseInt(value));
-		
+		jsonObj.put("hierarchy", (int) Double.parseDouble(value));
+
 	}
 
 	private static String getStringValue(Cell cell) {
-		String value = "";
+		String value = null;
 		try {
 			value = cell.getStringCellValue();
-			if(value.equalsIgnoreCase("NA")) {
+			logger.trace("value: {} ", value);
+			if (value == null || value.isBlank() || value.isEmpty() || value.equalsIgnoreCase("NA")) {
 				value = null;
 			}
 		} catch (Exception e) {
@@ -91,14 +105,14 @@ public class ConverterSchema {
 	}
 
 	private static JSONObject getJSONObject() {
-		return painJSONObjects.get(currentPainLevel).getJSONObject(currentIndex);
+		return rowJSONObj;
 	}
 
 	static void routeHandler(Cell cell) {
 		JSONObject jsonObject = getJSONObject();
 		String value = getStringValue(cell);
 		jsonObject.put("route", value);
-		
+
 	}
 
 	static void firstDrugHandler(Cell cell) {
@@ -107,17 +121,38 @@ public class ConverterSchema {
 
 	private static void getFirstStringArray(Cell cell, String key) {
 		JSONObject firstJsonObj = getFirstJSONObject();
+		getStringArray(cell, key, firstJsonObj);
+	}
+
+	private static void getSecondStringArray(Cell cell, String key) {
+		JSONObject secondJsonObj = getSecondJSONObject();
+		getStringArray(cell, key, secondJsonObj);
+	}
+
+	private static void getStringArray(Cell cell, String key, JSONObject jsonObj) {
 		String value = getStringValue(cell);
-		String [] valueArray = value.split("[\n]|OR");
-		JSONArray array = new JSONArray();
-		Arrays.stream(valueArray).forEach(dv -> array.put(dv));
-		firstJsonObj.put(key, array);
+		if (value != null) {
+			String[] valueArray = value.split("\n|OR|\\s");
+			JSONArray array = new JSONArray();
+			Arrays.stream(valueArray).filter(s -> !s.isEmpty() && !s.isBlank()).map(String::strip).forEach(dv -> array.put(dv));
+			jsonObj.put(key, array);
+		}
+
 	}
 
 	private static JSONObject getFirstJSONObject() {
+
+		return firstJSONObject;
+	}
+
+	private static JSONObject getSecondJSONObject() {
 		JSONObject jsonObject = getJSONObject();
-		JSONObject firstJsonObj = jsonObject.getJSONObject(FIRST);
-		return firstJsonObj;
+		if (secondJSONObject == null) {
+			secondJSONObject = new JSONObject();
+			jsonObject.put(SECOND, secondJSONObject);
+		}
+
+		return secondJSONObject;
 	}
 
 	static void firstActiveMoietyHandler(Cell cell) {
@@ -131,96 +166,219 @@ public class ConverterSchema {
 	}
 
 	static void firstAgeAdjustmentHandler(Cell cell) {
-		String value = getStringValue(cell);
-		if(value != null) {
-			JSONObject jsonObject = getFirstJSONObject();
-			
-			ageAdjustmentHandler(value, jsonObject);
-		}
-		
+		ageAjustment(cell, ConverterSchema::getFirstJSONObject);
+
 	}
 
 	private static void ageAdjustmentHandler(String value, JSONObject jsonObject) {
+		ifAvoidTrue(value, jsonObject, AGE_ADJUSTMENT, 2);
+	}
+
+	private static void ifAvoidTrue(String value, JSONObject jsonObject, String key, int nDigits) {
 		JSONObject nestedJSONObj = new JSONObject();
 		int indexGreater = value.indexOf('>');
 		int indexLess = value.indexOf('<');
-		if(indexGreater > -1) {
-			nestedJSONObj.put(MAX_THRESHOULD,
-					Integer.parseInt(value, indexGreater + 1, indexGreater + 3, 10));
-		} 
-		if(indexLess > -1) {
-			nestedJSONObj.put(MIN_THRESHOULD,
-					Integer.parseInt(value, indexLess + 1, indexLess + 3, 10));
-		} 
-		if (indexGreater > -1 || indexLess > -1 ) {
+		int offSet = 1 + nDigits;
+		if (indexGreater > -1) {
+			nestedJSONObj.put(MAX_THRESHOULD, Integer.parseInt(value, indexGreater + 1, indexGreater + offSet, 10));
+		}
+		if (indexLess > -1) {
+			nestedJSONObj.put(MIN_THRESHOULD, Integer.parseInt(value, indexLess + 1, indexLess + offSet, 10));
+		}
+		if (indexGreater > -1 || indexLess > -1) {
 			nestedJSONObj.put(AVOID, true);
 		}
 		if (!nestedJSONObj.isEmpty()) {
-			jsonObject.put(AGE_ADJUSTMENT, nestedJSONObj);
+			jsonObject.put(key, nestedJSONObj);
 		}
 	}
 
 	static void firstIntervalHandler(Cell cell) {
-		// TODO
+		intervalHandler(cell, ConverterSchema::getFirstJSONObject);
+	}
+
+	private static void intervalHandler(Cell cell, Supplier<JSONObject> jsonObjectSupplier) {
+		JSONObject jsonObj = jsonObjectSupplier.get();
+		String value = getStringValue(cell);
+		if (value != null) {
+			int intervalValue;
+			try {
+				intervalValue = (int) Double.parseDouble(value);
+			} catch (NumberFormatException e) {
+				intervalValue = 8;
+				System.out.println(String.format("row: %d;" + " column: %c - %s", cell.getRowIndex() + 1,
+						'A' + cell.getColumnIndex(), value));
+			}
+			jsonObj.put(INTERVAL, intervalValue);
+		}
+
 	}
 
 	static void firstWeightHandler(Cell cell) {
-		// TODO
+		JSONObject jsonObj = getFirstJSONObject();
+
+		weightAdjustment(cell, jsonObj);
+
+	}
+
+	private static void weightAdjustment(Cell cell, JSONObject jsonObj) {
+		String value = getStringValue(cell);
+		if (value != null) {
+			minThresholdAjustment(value, jsonObj, WEIGHT, new JSONObject(), 2);
+		}
+
+	}
+
+	private static void minThresholdAjustment(String value, JSONObject jsonObj, String key, JSONObject nestedJsonObj,
+			int nDigits) {
+		nestedJsonObj = new JSONObject();
+		int indexThreshold = value.indexOf('<');
+		if (indexThreshold > -1) {
+			int firstIndex = indexThreshold + 1;
+			int secondIndex = firstIndex + nDigits;
+			int threshold = Integer.parseInt(value, firstIndex, secondIndex, 10);
+			nestedJsonObj.put(MIN_THRESHOULD, threshold);
+			fillNestedJSONObj(value, nestedJsonObj);
+			jsonObj.put(key, nestedJsonObj);
+
+		}
+	}
+
+	private static void fillNestedJSONObj(String value, JSONObject nestedJsonObj) {
+		value = value.replaceAll("\\s", "");
+		int indexDosing = value.indexOf("mg");
+		int indexInterval = value.indexOf('h');
+		if (indexInterval > -1) {
+			int startIndexInterval = getStartIndex(indexInterval, value);
+			int interval = Integer.parseInt(value, startIndexInterval, indexInterval, 10);
+			nestedJsonObj.put(INTERVAL, interval);
+		}
+		if (indexDosing > -1) {
+			int startIndexDosing = getStartIndex(indexDosing, value);
+			int dosing = Integer.parseInt(value, startIndexDosing, indexDosing, 10);
+			nestedJsonObj.put(DOSING, dosing);
+		}
+		if (value.indexOf(AVOID) > -1) {
+			nestedJsonObj.put(AVOID, true);
+		}
+	}
+
+	private static int getStartIndex(int indexUnit, String value) {
+		int startIndex = indexUnit - 1;
+		while (startIndex - 1 > -1 && Character.isDigit(value.charAt(startIndex - 1))) {
+			startIndex--;
+		}
+		return startIndex;
 	}
 
 	static void firstChildPughHandler(Cell cell) {
-		// TODO
+		childPughHandler(cell, ConverterSchema::getFirstJSONObject);
+	}
+
+	static void childPughHandler(Cell cell, Supplier<JSONObject> jsonObjectSupplier) {
+		JSONObject jsonObj = jsonObjectSupplier.get();
+		String value = getStringValue(cell);
+		if (value != null) {
+			JSONArray nestedJsonArray = new JSONArray();
+			String[] valueParts = value.split("\n");
+			for (String part : valueParts) {
+				JSONObject nestedJsonObj = new JSONObject();
+				nestedJsonObj.put(CLASS, part.substring(0, 1));
+				fillNestedJSONObj(part, nestedJsonObj);
+				nestedJsonArray.put(nestedJsonObj);
+			}
+			jsonObj.put(CHILD_PUGH, nestedJsonArray);
+		}
 	}
 
 	static void secondActiveMoietyHandler(Cell cell) {
-		// TODO
+		getSecondStringArray(cell, ACTIVE_MOIETY);
+
 	}
 
 	static void secondDosingHandler(Cell cell) {
-		// TODO
+		JSONObject jsonObject = getSecondJSONObject();
+		String value = getStringValue(cell);
+		jsonObject.put(DOSING, value);
 	}
 
 	static void secondAgeAdjustmentHandler(Cell cell) {
-		// TODO
+		ageAjustment(cell, ConverterSchema::getSecondJSONObject);
+	}
+
+	static void ageAjustment(Cell cell, Supplier<JSONObject> jsonObjectSupplier) {
+		String value = getStringValue(cell);
+		if (value != null) {
+			JSONObject jsonObject = jsonObjectSupplier.get();
+
+			ageAdjustmentHandler(value, jsonObject);
+		}
 	}
 
 	static void secondIntervalHandler(Cell cell) {
-		// TODO
+		intervalHandler(cell, ConverterSchema::getSecondJSONObject);
 	}
 
 	static void secondWeightHandler(Cell cell) {
-		// TODO
+		JSONObject jsonObj = getSecondJSONObject();
+		weightAdjustment(cell, jsonObj);
 	}
 
 	static void secondChildPughHandler(Cell cell) {
-		// TODO
+		childPughHandler(cell, ConverterSchema::getSecondJSONObject);
 	}
 
 	static void gfrHandler(Cell cell) {
-		// TODO
+		String value = getStringValue(cell);
+		if (value != null) {
+			JSONObject nestedJsonObj = new JSONObject();
+			minThresholdAjustment(value, getJSONObject(), GFR, nestedJsonObj, 2);
+			if (value.indexOf("1st") > -1) {
+				nestedJsonObj.put(FIRST_DRUG_ONLY, true);
+			}
+
+		}
 	}
 
 	static void pltHandler(Cell cell) {
-		// TODO
+		String value = getStringValue(cell);
+		if (value != null) {
+			JSONObject jsonObject = getJSONObject();
+			ifAvoidTrue(value, jsonObject, PLT, 3);
+		}
 	}
 
 	static void wbcHandler(Cell cell) {
-		// TODO
+		String value = getStringValue(cell);
+		if (value != null) {
+			JSONObject jsonObject = getJSONObject();
+			ifAvoidTrue(value, jsonObject, WBC, 1);
+		}
 	}
 
 	static void satHandler(Cell cell) {
-		// TODO
+		String value = getStringValue(cell);
+		if (value != null) {
+			JSONObject jsonObject = getJSONObject();
+			ifAvoidTrue(value, jsonObject, SAT, 2);
+		}
 	}
 
 	static void sodiumHandler(Cell cell) {
-		// TODO
+		String value = getStringValue(cell);
+		if (value != null) {
+			JSONObject jsonObject = getJSONObject();
+			ifAvoidTrue(value, jsonObject, SODIUM, 2);
+		}
 	}
 
 	static void sensitivityHandler(Cell cell) {
-		// TODO
+		JSONObject jsonObj = getJSONObject();
+		getStringArray(cell, SENSITIVITY, jsonObj);
 	}
 
 	static void contraindicationsHandler(Cell cell) {
-		// TODO
+		JSONObject jsonObj = getJSONObject();
+		getStringArray(cell, CONTRAINDICATIONS, jsonObj);
 	}
 }
