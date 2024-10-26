@@ -5,20 +5,18 @@ import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import org.apache.logging.log4j.*;
-import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.message.Message;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class ConverterService {
-	private HashMap<String, JSONArray> jsonObjects;
+	private LinkedHashMap<String, JSONArray> jsonObjects;
 	static private Iterator<Row> rowsIterator;
-	private HashMap<String, Consumer<Cell>> handlers;
+	private LinkedHashMap<String, Consumer<Cell>> handlers;
 	private String[] titlesArr;
-	private ConverterService(HashMap<String, JSONArray> jsonObjects,
-			HashMap<String, Consumer<Cell>> handlers, String[] titlesArr ) {
+	private ConverterService(LinkedHashMap<String, JSONArray> jsonObjects,
+			LinkedHashMap<String, Consumer<Cell>> handlers, String[] titlesArr ) {
 		this.jsonObjects = jsonObjects;
 		this.handlers = handlers;
 		this.titlesArr = titlesArr;
@@ -31,8 +29,8 @@ public class ConverterService {
 		Row titles = rowsIterator.next();
 		ConverterService.rowsIterator = rowsIterator;
 		if (converterService == null) {
-			HashMap<String, JSONArray> jsonObjects = new HashMap<>();
-			HashMap<String, Consumer<Cell>> handlers = ConverterSchema.getHandlers(jsonObjects);
+			LinkedHashMap<String, JSONArray> jsonObjects = new LinkedHashMap<>();
+			LinkedHashMap<String, Consumer<Cell>> handlers = ConverterSchema.getHandlers(jsonObjects);
 			logger.debug("handlers: {}", handlers.keySet());
 			String []titlesArr = getTitlesArray(titles);
 			logger.info("titles: {}", Arrays.toString(titlesArr));
@@ -91,7 +89,7 @@ public class ConverterService {
 				'A' + cell.getColumnIndex(), status);
 	}
 
-	private static void checkSchema(HashMap<String, Consumer<Cell>> handlers, String[] titlesArr) throws Exception {
+	private static void checkSchema(LinkedHashMap<String, Consumer<Cell>> handlers, String[] titlesArr) throws Exception {
 		Set<String> titleNames = handlers.keySet();
 		int schemaNumberOfColumns = titleNames.size();
 		if (schemaNumberOfColumns != titlesArr.length) {

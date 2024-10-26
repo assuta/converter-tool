@@ -30,16 +30,16 @@ public class ConverterSchema {
 	private static final String SENSITIVITY = "sensitivity";
 	private static final String CONTRAINDICATIONS = "contraindications";
 	private static String currentPainLevel = "";
-	private static HashMap<String, JSONArray> painJSONObjects;
+	private static LinkedHashMap<String, JSONArray> painJSONObjects;
 	private static JSONObject firstJSONObject;
 	private static JSONObject secondJSONObject;
 	private static JSONObject rowJSONObj;
 	private static Logger logger = ExcelConverterAppl.logger;
 
 	@SuppressWarnings("serial")
-	public static HashMap<String, Consumer<Cell>> getHandlers(HashMap<String, JSONArray> painJSONObjects) {
+	public static LinkedHashMap<String, Consumer<Cell>> getHandlers(LinkedHashMap<String, JSONArray> painJSONObjects) {
 		ConverterSchema.painJSONObjects = painJSONObjects;
-		return new HashMap<String, Consumer<Cell>>() {
+		return new LinkedHashMap<String, Consumer<Cell>>() {
 			{
 				put("pain_level", ConverterSchema::painLevelHandler);
 				put("regimen_hierarchy", ConverterSchema::hierarchyHandler);

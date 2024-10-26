@@ -5,9 +5,7 @@ import java.util.Iterator;
 
 import org.apache.logging.log4j.*;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
-//import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.*;
 
 public class ExcelConverterAppl {
